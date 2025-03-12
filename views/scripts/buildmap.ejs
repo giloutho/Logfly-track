@@ -1,0 +1,115 @@
+<script src="https://unpkg.com/leaflet@1.9.2/dist/leaflet.js"></script>
+<%- include ('./frontend') %>
+<script type="text/javascript" src="/measure.js"></script>
+<script type="text/javascript" src="/tiles.js"></script>
+<script>      
+    // Specific to render process
+    const mainGeoJson = '<%- JSON.stringify(mainTrack.GeoJSON) %>'
+    const mainFixes = JSON.parse('<%- JSON.stringify(mainTrack.fixes) %>')
+    const arrayAlti = JSON.parse(mainGeoJson).features[0]['geometry']['coordinates'].map(coord => coord[2])
+    const arrayHour = JSON.parse(mainGeoJson).features[0]['properties']['coordTimes'].map(hour => new Date(hour))
+    let msg = '<%- mainTrack.info.pilot %>'+'<br>'
+    msg += '<%- mainTrack.fixes%>'.length+' points<br>'
+    msg += arrayAlti.length+' points alti<br>'
+    msg += arrayHour.length+' points time<br>'
+    msg += mainFixes[6].latitude+' <br>'
+    document.getElementById('graphe').innerHTML = msg
+    
+    $('#nav-infos').removeClass('d-none')
+
+    /*  No need, direct loading at the start of the script
+        const L = tiles.leaf
+        const baseMaps = tiles.baseMaps
+    */
+    let currlang
+    let hgChart
+    let sidebar
+    let endLatlng 
+    let startLatlng
+    let sidebarState
+    let currLeague
+    let map
+    let layerControl
+    let scoreGroup
+    let airspGroup
+    let aipGroup
+    let geoScore
+    let currOAFile
+
+    iniForm()
+
+    locMeasure = new measure()
+
+    buildMap()
+
+    function buildMap() {
+        
+
+        let mousemarker = null
+
+        const trackOptions = {
+            color: 'red',
+            weight: 2,
+            opacity: 0.85
+        }
+
+        const thermOptions = {
+            color: 'yellow',
+            weight: 6,
+            opacity: 0.50
+        }
+
+        const glideOptions = {
+            color: '#848484',
+            weight: 3, 
+            dashArray: '10,5', 
+            opacity: 1
+        }
+
+        map = L.map('carte').setView([45.9, 6.1], 13); // Centered on Annecy, France
+
+        locMeasure.addTo(map)
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        map.removeLayer(L.geoJson)
+        const geojsonLayer = L.geoJson(JSON.parse(mainGeoJson),{ style: trackOptions })
+        const tracksGroup = new L.LayerGroup()
+        tracksGroup.addTo(map)
+        tracksGroup.addLayer(geojsonLayer)
+
+        const StartIcon = new L.Icon({
+            iconUrl: '/images/windsock22.png',
+            shadowUrl: '/images/marker-shadow.png',
+            iconSize: [18, 18],
+            iconAnchor: [0, 18],
+            popupAnchor: [1, -34],
+            shadowSize: [25, 25]
+        })
+
+        const startLatlng = L.latLng(mainFixes[0].latitude, mainFixes[0].longitude)
+        L.marker(startLatlng,{icon: StartIcon}).addTo(map)
+
+        const EndIcon = new L.Icon({
+            iconUrl: '/images/Arrivee22.png',
+            shadowUrl: '/images/marker-shadow.png',
+            iconSize: [18, 18],
+            iconAnchor: [4, 18],
+            popupAnchor: [1, -34],
+            shadowSize: [25, 25]
+        })
+
+        endLatlng = L.latLng(mainFixes[mainFixes.length - 1].latitude, mainFixes[mainFixes.length - 1].longitude)
+        L.marker(endLatlng,{icon: EndIcon}).addTo(map)
+
+        map.fitBounds(geojsonLayer.getBounds())
+    }
+
+    function iniForm() {
+        document.getElementById('bt-mes').addEventListener('click',(event) => {
+        locMeasure._toggleMeasure()
+        })
+    }
+</script>

@@ -1,0 +1,19 @@
+<nav class="navbar navbar-expand-sm bg-dark navbar-dark justify-content-between w-100">
+  <div>
+    <a class="navbar-brand" href="#">
+      <img src="/images/Logo_IGC.png" alt="Logo" width="50">
+    </a>
+    <a href="#"><span class="badge badge-dark logo-title">Logfly-track</span></a>
+  </div>
+  <div id="nav-infos" class="d-none">
+    <button type="button" id="bt-infos" class="btn btn-primary btn-sm" style="margin-left:20px">Informations</button>
+    <button type="button" id="bt-mes" class="btn btn-primary btn-sm" style="margin-left:10px">Mesurer</button> 
+    <div class="spinner-border text-danger d-none" id="waiting-spin" style="margin-left:10px" role="status"></div>             
+    <button type="button" id="wintitle" class="btn btn-success btn-sm" style="margin-left:300px">Mesurer 2</button>  
+  </div>
+  <form class="form-inline" action="/upload" method="POST" enctype="multipart/form-data">
+    <input class="form-control mr-sm-2" type="file" name="textFile" accept=".igc" required>
+    <button class="btn btn-success" type="submit">Afficher</button>
+  </form>
+  <a class="btn btn-secondary" href="test">Reset exemple</a>
+</nav>

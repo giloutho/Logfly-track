@@ -1,0 +1,57 @@
+/* PRINCIPAL */
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+/* HEADER */
+
+  /* NAVBAR */
+  .navbar {
+    background: rgba(0, 0, 0, 0.8);
+  }
+
+  .navbar-collapse {
+    border-top: 1px solid #fff;
+  }
+
+  .logo-title{
+    color: #fff;
+    font-size: 20px;
+    font-weight: bold;
+  }
+
+/* BODY */
+
+hr {
+  margin: 0 20px 20px;
+  background-color: #fff;
+  border-top: 2px solid #000;
+}
+
+.page {
+  margin: 80px 0;
+  min-height: 600px;
+}
+
+.page>.row>p {
+  padding: 10px!important;
+}
+
+
+input[type='file'] {
+  color: transparent;
+}
+
+::-webkit-file-upload-button {
+  display: none;
+}
+
+#carte {
+  height: 75vh;
+  width: 100%;
+}
+#graphe {
+  height: 25vh;
+  width: 100%;
+}
