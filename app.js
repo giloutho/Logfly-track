@@ -11,6 +11,7 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'styles')));
 app.use(express.static(path.join(__dirname, 'node_modules')));
 app.use(express.static(path.join(__dirname, 'leaflet')));
+app.use(express.static(path.join(__dirname, 'lang')));
 
 
 // Réglage du modèle de vue avec "ejs"

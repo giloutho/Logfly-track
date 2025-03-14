@@ -1,0 +1,63 @@
+/**
+ from https://groups.google.com/g/leaflet-js/c/b9hLU8h5MBY?pli=1 contrib Bryan McBride
+*/
+html {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+  }
+  body {
+    height: 100%;
+    width: 100%;
+    padding-top: 0px;
+    padding-bottom: 50px;
+  }
+  #carte {
+    height: 75%;
+    width: 100%;
+  }
+  #graphe {
+    height: 25%;
+    width: 100%;
+  }
+  #waiting-center {  
+    display: flex; 
+    justify-content: center; 
+    align-items: center;
+  } 
+.leaflet-google-layer{
+    z-index: 0 !important;
+}
+.leaflet-map-pane{
+    z-index: 100;
+}
+table{
+    border:1px solid black;
+    border-collapse: collapse;
+}
+th, td{
+    border:1px solid black;
+    padding: 2px;
+    font-weight: bolder;
+}
+tr:nth-child(even) {background: #CCC}
+tr:nth-child(odd) {background: #FFF}
+td:nth-child(2) { text-align: right; } 
+caption { 
+    font-weight: bold;
+    font-size: 1.4em;
+    caption-side: top;
+    text-align: center;
+}
+
+.awesome-marker i {
+    font-size: 20px;
+    margin-top: 8px;
+}
+
+.waiting-center {  
+  display: flex; 
+  justify-content: center; 
+  align-items: center;
+}
+

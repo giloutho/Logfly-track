@@ -2,18 +2,54 @@
 <%- include ('./frontend') %>
 <script type="text/javascript" src="/measure.js"></script>
 <script type="text/javascript" src="/tiles.js"></script>
+<script type="text/javascript" src="/sidebar-tabless.js"></script>
+<script src="/gettext.js" type="text/javascript"></script>
+
+<script src="https://code.highcharts.com/highcharts.js"></script>
 <script>      
     // Specific to render process
     const mainGeoJson = '<%- JSON.stringify(mainTrack.GeoJSON) %>'
     const mainFixes = JSON.parse('<%- JSON.stringify(mainTrack.fixes) %>')
     const arrayAlti = JSON.parse(mainGeoJson).features[0]['geometry']['coordinates'].map(coord => coord[2])
     const arrayHour = JSON.parse(mainGeoJson).features[0]['properties']['coordTimes'].map(hour => new Date(hour))
-    let msg = '<%- mainTrack.info.pilot %>'+'<br>'
+    const trackInfo = JSON.parse('<%- JSON.stringify(mainTrack.info) %>')
+    const trackStat = JSON.parse('<%- JSON.stringify(mainTrack.stat) %>')
+    const anaTrack = JSON.parse('<%- JSON.stringify(anaTrack) %>')
+    i18n = window.i18n();
+    i18n.setLocale('en')
+
+    // CODE A ELIMINER
+    //let msg = '<%- mainTrack.info.pilot %>'+'<br>'
+    let msg = trackInfo.pilot+'<br>'
     msg += '<%- mainTrack.fixes%>'.length+' points<br>'
-    msg += arrayAlti.length+' points alti<br>'
-    msg += arrayHour.length+' points time<br>'
+    const dateTkoff = new Date(arrayHour[0])  // to get local time
+        // getMonth returns integer from 0(January) to 11(December)
+        const dTkOff = String(dateTkoff.getDate()).padStart(2, '0')+'/'+String((dateTkoff.getMonth()+1)).padStart(2, '0')+'/'+dateTkoff.getFullYear()     
+        const hTkoff =  Highcharts.dateFormat('%H:%M:%S',dateTkoff)
+
+    msg += 'Take off : '+hTkoff+' à '+mainFixes[0].gpsAltitude+'m<br>'
+    msg += 'Heure déco : '+arrayHour[0]+' '+i18n.gettext('My tailor')+' h<br>'
+    const durationFormatted =  new Date(trackStat.duration*1000).toUTCString().match(/(\d\d:\d\d:\d\d)/)[0]
+    msg += 'Durée : '+durationFormatted+'</br>'
     msg += mainFixes[6].latitude+' <br>'
     document.getElementById('graphe').innerHTML = msg
+    // FIN DU CODE A ELIMINER
+
+    // General declaration of Logfly
+    let tkoffSite = ''     // In Logfly site is serached in logbook db
+    const btnInfos  = document.getElementById('bt-infos')
+
+    // Build with return from main process in Logfly
+    const trackGlider = '<%- mainTrack.info.gliderType %>'
+    let gliderType
+    if (trackGlider != undefined && trackGlider != '') {
+        gliderType = ' '+i18n.gettext('Glider')
+        gliderType += ' : '+trackGlider.trim()
+    } else {
+        gliderType = ''
+    }
+    const winLabel = '<%- mainTrack.info.date %>'+gliderType
+    document.getElementById('wintitle').innerHTML = winLabel
     
     $('#nav-infos').removeClass('d-none')
 
@@ -43,9 +79,38 @@
     buildMap()
 
     function buildMap() {
-        
+        let tata = i18n.gettext('My tailor')
+        map = L.map('carte').setView([0, 0], 5)
+
+        const defaultMap = 'osm'        // in Logfly -> store.get('map')
+        // baseMaps is coming from /tiles.js
+        switch (defaultMap) {
+        case 'open':
+            baseMaps.OpenTopo.addTo(map)  
+            break
+        case 'ign':
+            baseMaps.IGN.addTo(map)  
+            break      
+        case 'osm':
+            baseMaps.OSM.addTo(map) 
+            break
+        case 'mtk':
+            baseMaps.MTK.addTo(map)  
+            break  
+        case '4u':
+            baseMaps.UMaps.addTo(map)
+            break     
+        case 'out':
+            baseMaps.Outdoor.addTo(map)           
+            break           
+        default:
+            baseMaps.OSM.addTo(map)        
+            break   
+        }    
 
         let mousemarker = null
+
+        locMeasure.addTo(map)
 
         const trackOptions = {
             color: 'red',
@@ -66,19 +131,29 @@
             opacity: 1
         }
 
-        map = L.map('carte').setView([45.9, 6.1], 13); // Centered on Annecy, France
-
-        locMeasure.addTo(map)
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-
         map.removeLayer(L.geoJson)
         const geojsonLayer = L.geoJson(JSON.parse(mainGeoJson),{ style: trackOptions })
         const tracksGroup = new L.LayerGroup()
         tracksGroup.addTo(map)
         tracksGroup.addLayer(geojsonLayer)
+
+
+        let mAisrpaces = i18n.gettext('openAIP')
+        let mTrack = i18n.gettext('Track')
+        let mThermal = i18n.gettext('Thermals')
+        let mTrans = i18n.gettext('Transitions')
+        let mScore = i18n.gettext('Score')
+
+
+        let Affichage = {
+           // [mAisrpaces] : openaip_layer,  
+            [mTrack] : tracksGroup,
+           // [mThermal] : thermalGroup,
+          //  [mTrans]: GlidesGroup,
+        }
+
+        layerControl = new L.control.layers(baseMaps,Affichage).addTo(map)
+
 
         const StartIcon = new L.Icon({
             iconUrl: '/images/windsock22.png',
@@ -104,6 +179,17 @@
         endLatlng = L.latLng(mainFixes[mainFixes.length - 1].latitude, mainFixes[mainFixes.length - 1].longitude)
         L.marker(endLatlng,{icon: EndIcon}).addTo(map)
 
+        sidebar = L.control.sidebar({
+            autopan: false,       // whether to maintain the centered map point when opening the sidebar
+            closeButton: true,    // whether t add a close button to the panes
+            container: 'sidebar', // the DOM container or #ID of a predefined sidebar container that should be used
+            position: 'left',     // left or right
+        }).addTo(map)        
+
+        buildSidePanels()
+        // by default sidebar is open on tab "summary"
+        sidebar.open('summary')
+
         map.fitBounds(geojsonLayer.getBounds())
     }
 
@@ -111,5 +197,131 @@
         document.getElementById('bt-mes').addEventListener('click',(event) => {
         locMeasure._toggleMeasure()
         })
+        btnInfos.addEventListener('click',(event) => {
+            // sidebarState is updated by sidebar events: opening, closing defined on buildSidePanels()
+            if (sidebarState) {
+                sidebar.close()
+                sidebarState = false
+            } else {
+                sidebar.open('summary')
+                sidebarState = true
+            }   
+        })  
     }
+
+    function buildSidePanels()
+    {
+        sidebar.addPanel({
+            id:   'summary',
+            tab:  '<i class="fa fa-gear"></i>',
+            title: i18n.gettext('Summary'),
+            pane: fillSidebarInfo()  // fillSidebarSummary()
+        })
+        
+        sidebar.addPanel({
+            id:   'pathway',
+            tab:  '<i class="fa fa-gear"></i>',
+            title: i18n.gettext('Pathway'),
+            pane: fillSidebarInfo() //fillSidebarPathway()
+        }) 
+
+        sidebar.addPanel({
+            id:   'infos',
+            tab:  '<i class="fa fa-gear"></i>',
+            title: i18n.gettext('General information'),
+            pane: fillSidebarInfo()
+        })    
+
+        sidebar.addPanel({
+            id:   'score',
+            tab:  '<i class="fa fa-gear"></i>',
+            title: i18n.gettext('Score'),
+            pane: fillSidebarInfo() // fillSidebarScoring()
+        })     
+
+        sidebar.addPanel({
+            id:   'check',
+            tab:  '<i class="fa fa-gear"></i>',
+            title: i18n.gettext('Checking'),
+            pane: fillSidebarInfo()   //fillSidebarChecking()
+        })     
+
+        sidebar.on('closing', function(e) {
+            sidebarState = false
+            btnInfos.innerHTML = i18n.gettext('Show analysis')
+        })
+
+        sidebar.on('opening', function(e) {
+            sidebarState = true
+            btnInfos.innerHTML = i18n.gettext('Hide analysis')
+        })
+    }
+    
+    function fillSidebarInfo() {
+        let flightDate
+        const dateTkoff = new Date(arrayHour[0])  // to get local time
+        // getMonth returns integer from 0(January) to 11(December)
+        const dTkOff = String(dateTkoff.getDate()).padStart(2, '0')+'/'+String((dateTkoff.getMonth()+1)).padStart(2, '0')+'/'+dateTkoff.getFullYear()     
+        const hTkoff =  Highcharts.dateFormat('%H:%M:%S',dateTkoff)
+        const dateLand = new Date(arrayHour[arrayHour.length-1])
+        // const dateLand = new Date(mainTrack.fixes[mainTrack.fixes.length - 1].timestamp)
+        const hLand = Highcharts.dateFormat('%H:%M:%S',dateLand)    
+        const durationFormatted =  new Date('<%- mainTrack.stat.duration %>'*1000).toUTCString().match(/(\d\d:\d\d:\d\d)/)[0]
+        const arrTakeOff = tkoffSite.split("*")
+        let formattedSite
+        if (arrTakeOff.length > 1)
+            formattedSite = arrTakeOff[0]+' ('+arrTakeOff[1]+')'
+        else
+            formattedSite = tkoffSite
+        let trackSecurity = i18n.gettext('No')
+        if (trackInfo.security !== null) 
+        {
+            if (trackInfo.toString() == (null || ""))
+                trackSecurity = i18n.gettext('No')
+            else 
+                trackSecurity = i18n.gettext('Yes')
+        }
+        let htmlText = fillSidebarButtons()
+        htmlText += '<div><table>'
+        htmlText += '    <tbody>'
+        htmlText += '      <tr><td>'+i18n.gettext('Date')+'</td><td>'+trackInfo.date+'</td></tr>'      
+        htmlText += '      <tr><td>'+i18n.gettext('Pilot')+'</td><td>'+trackInfo.pilot+'</td></tr>'  
+        htmlText += '      <tr><td>'+i18n.gettext('Glider')+'</td><td>'+trackInfo.gliderType+'</td></tr>'  
+        htmlText += '      <tr><td>'+i18n.gettext('Duration')+'</td><td>'+durationFormatted+'</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('Take off')+'</td><td>'+hTkoff+'</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('GPS alt')+'</td><td>'+mainFixes[0].gpsAltitude+' m</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('Site')+'</td><td>'+formattedSite+'</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('Landing')+'</td><td>'+hLand+'</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('GPS alt')+'</td><td>'+mainFixes[mainFixes.length - 1].gpsAltitude+' m</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('City')+'</td><td></td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('Max GPS alt')+'</td><td>'+trackStat.maxalt.gps+' m</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('Min GPS alt')+'</td><td>'+trackStat.minialt.gps+' m</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('Max climb')+'</td><td>'+trackStat.maxclimb+' m/s</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('Max sink')+'</td><td>'+trackStat.maxsink+' m/s</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('Max gain')+'</td><td>'+anaTrack.bestGain+' m</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('Max speed')+'</td><td>'+trackStat.maxspeed+' km/h</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('Best transition')+'</td><td>'+(anaTrack.bestGlide/1000).toFixed(2)+' km</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('Points')+'</td><td>'+mainFixes.length+'</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('Range')+'</td><td>'+trackStat.interval+' s</td></tr>' 
+        htmlText += '      <tr><td>'+i18n.gettext('Size')+'</td><td>'+trackStat.distance.toFixed(2)+' km</td></tr>'   
+        htmlText += '      <tr><td>'+i18n.gettext('Signature')+'</td><td>'+trackSecurity+'</td></tr>' 
+        htmlText += '    </tbody>'
+        htmlText += '  </table></div>'
+
+        return htmlText
+    } 
+
+    function fillSidebarButtons() {
+        
+        let htmlText = '<br>'
+        htmlText += '<div class="btn-toolbar pull-left">'
+        htmlText += ' <button type="button" class="btn-success btn-sm mr-1" onclick="sidebar.open(\'summary\')">'+i18n.gettext('Summary')+'</button>'
+        htmlText += ' <button type="button" class="btn-warning btn-sm mr-1" onclick="openPathway()">'+i18n.gettext('Pathway')+'</button>'
+        htmlText += ' <button type="button" class="btn-secondary btn-sm mr-1" onclick="sidebar.open(\'infos\')">'+i18n.gettext('General')+'</button>'
+        htmlText += ' <button type="button" class="btn-primary btn-sm mr-1" onclick="sidebar.open(\'score\')">'+i18n.gettext('Score')+'</button>'
+        htmlText += ' <button type="button" class="btn-info btn-sm" onclick="sidebar.open(\'check\')"><i class="fa fa-plane"></i>&nbsp;'+i18n.gettext('Check')+'</button>'
+        htmlText += '</div>'
+        return htmlText
+    }
+
 </script>

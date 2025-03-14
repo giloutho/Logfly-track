@@ -1,4 +1,4 @@
-const { truncate } = require("original-fs");
+//const { truncate } = require("original-fs");
 
 /**
  * It's a pure adaptation of analyze class in igc2Kmz/track.py, an effective code of Tom Payne
