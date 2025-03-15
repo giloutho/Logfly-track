@@ -1,20 +1,13 @@
 <!DOCTYPE html>
 <html lang="fr">
-  <%- include ('./include/head')%>
-
-  <body id="igcfile-page">
+  <%- include ('./include/head') %>
+  <body id="test-page">
     <%- include ('./include/menu') %>
-    <div class="page container-fluid">
-      <% if (fileContent) { %>
-        <b>File name: <%= fileName  %></b>
-        <li>Date : <%= fileContent.info.date %></li>
-        <li>Pilote : <%= fileContent.info.pilot%></li>
-        <li>Glider : <%= fileContent.info.gliderType%></li>
-      <% } else { %>
-        <p>No file uploaded yet.</p>
-      <% } %>
+    <div class="container-fluid">
+      <div id="carte"></div>
+      <div id="graphe"></div>
     </div>
-    <%- include ('./include/scripts') %>
+    <%- include ('./scripts/buildmap') %>
   </body>
 
 </html>

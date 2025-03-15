@@ -20,11 +20,17 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 router.get('/', (req, res) => {
-  const igcData = testIgc(res, 'test.IGC')
+  const igcName = 'test.IGC'
+  const appDir = path.dirname(require.main.filename);
+  const filePath = path.join(appDir, 'igc', igcName);
+  renderTrack(filePath,res,'test',)
 });
 
 router.get("/test", (req, res) => {
-  const igcData = testIgc(res, 'test.IGC')
+  const igcName = 'test.IGC'
+  const appDir = path.dirname(require.main.filename);
+  const filePath = path.join(appDir, 'igc', igcName);
+  renderTrack(filePath,res,'test',)
 });
 
 // Handle file upload and display the content
@@ -32,24 +38,13 @@ router.post('/upload', upload.single('textFile'), (req, res) => {
   if (!req.file) {
     return res.send('No file uploaded.');
   }
-
   // Read the uploaded file content
   const appDir = path.dirname(require.main.filename);
   const filePath = path.join(appDir, 'uploads', req.file.filename);
-  fs.readFile(filePath, 'utf8', (err, data) => {
-    if (err) {
-      return res.send('Error reading the file.');
-    }
-    const track = igcRead.decodeIGC(data)
-    res.render('igcfile', { fileContent: track, fileName : req.file.originalname });
+    renderTrack(filePath,res,'igcfile',)
   });
-});
 
-function testIgc(res, igcName) {
-  let data = null
-  const appDir = path.dirname(require.main.filename);
-  const filePath = path.join(appDir, 'igc', igcName);
-  console.log('*** read test : '+filePath)
+function renderTrack(filePath,res, page) {
   fs.readFile(filePath, 'utf8', (err, data) => {
     if (err) {
       const msg = 'Error reading the file : '+filePath
@@ -64,10 +59,8 @@ function testIgc(res, igcName) {
     const anaTrack = new IGCAnalyzer()
     anaTrack.compute(track.fixes)
     //The final step is to download the ground heights
-    console.log('anaTrack.bestGain : '+anaTrack.bestGain)
-    res.render('test',{ mainTrack : track, anaTrack : anaTrack });
+    res.render(page,{ mainTrack : track, anaTrack : anaTrack });
   });
 }
-
 
 module.exports = router;

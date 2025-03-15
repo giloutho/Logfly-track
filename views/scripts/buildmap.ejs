@@ -1,9 +1,12 @@
 <script src="https://unpkg.com/leaflet@1.9.2/dist/leaflet.js"></script>
-<%- include ('./frontend') %>
 <script type="text/javascript" src="/measure.js"></script>
 <script type="text/javascript" src="/tiles.js"></script>
 <script type="text/javascript" src="/sidebar-tabless.js"></script>
+<script type="text/javascript" src="/igc/igc-xc-score.js"></script>
 <script src="/gettext.js" type="text/javascript"></script>
+<script src="/graphic/pie-generator.js" type="text/javascript"></script>
+<script type="text/javascript" src="/leaflet.awesome-markers.min.js"></script>
+<script type="text/javascript" src="/L.Control.Layers.Tree.js"></script>
 
 <script src="https://code.highcharts.com/highcharts.js"></script>
 <script>      
@@ -15,23 +18,16 @@
     const trackInfo = JSON.parse('<%- JSON.stringify(mainTrack.info) %>')
     const trackStat = JSON.parse('<%- JSON.stringify(mainTrack.stat) %>')
     const anaTrack = JSON.parse('<%- JSON.stringify(anaTrack) %>')
+    const igcRaw1 = '<%- JSON.stringify(mainTrack.igcData) %>'
+    // JSON.stringify enclose the string in quotes
+    // This throws an erro in IGCParser
+    const igcText = igcRaw1.substring(1)   // remove initial quote
     i18n = window.i18n();
     i18n.setLocale('en')
 
     // CODE A ELIMINER
     //let msg = '<%- mainTrack.info.pilot %>'+'<br>'
-    let msg = trackInfo.pilot+'<br>'
-    msg += '<%- mainTrack.fixes%>'.length+' points<br>'
-    const dateTkoff = new Date(arrayHour[0])  // to get local time
-        // getMonth returns integer from 0(January) to 11(December)
-        const dTkOff = String(dateTkoff.getDate()).padStart(2, '0')+'/'+String((dateTkoff.getMonth()+1)).padStart(2, '0')+'/'+dateTkoff.getFullYear()     
-        const hTkoff =  Highcharts.dateFormat('%H:%M:%S',dateTkoff)
-
-    msg += 'Take off : '+hTkoff+' à '+mainFixes[0].gpsAltitude+'m<br>'
-    msg += 'Heure déco : '+arrayHour[0]+' '+i18n.gettext('My tailor')+' h<br>'
-    const durationFormatted =  new Date(trackStat.duration*1000).toUTCString().match(/(\d\d:\d\d:\d\d)/)[0]
-    msg += 'Durée : '+durationFormatted+'</br>'
-    msg += mainFixes[6].latitude+' <br>'
+    let msg = trackInfo.pilot+' '+'<%- mainTrack.fixes%>'.length+' points<br>'
     document.getElementById('graphe').innerHTML = msg
     // FIN DU CODE A ELIMINER
 
@@ -77,6 +73,12 @@
     locMeasure = new measure()
 
     buildMap()
+
+    $( "#mnu-scoring a" ).on( "click", function() {
+        const selLeague =  $( this ).text()
+        $('button[data-toggle="dropdown"]').text(selLeague)
+        runXcScore(selLeague)
+    })
 
     function buildMap() {
         let tata = i18n.gettext('My tailor')
@@ -137,6 +139,23 @@
         tracksGroup.addTo(map)
         tracksGroup.addLayer(geojsonLayer)
 
+        const thermalLayerOption = {
+        style: thermOptions, 
+        pointToLayer: thermalIcon,
+            onEachFeature: createPopThermal // the code comes from a mine of snippet Leaflet https://gist.github.com/geog4046instructor
+        }
+        const geoThermals =  L.geoJson(anaTrack.geoThermals,thermalLayerOption)
+        const thermalGroup = new L.LayerGroup()
+        thermalGroup.addLayer(geoThermals)
+
+        const glideLayerOption = {
+            style: glideOptions, 
+            pointToLayer: glideIcon,
+            onEachFeature: createPopGlide
+        }
+        const geoGlides =  L.geoJson(anaTrack.geoGlides,glideLayerOption)
+        const GlidesGroup = new L.LayerGroup()
+        GlidesGroup.addLayer(geoGlides)
 
         let mAisrpaces = i18n.gettext('openAIP')
         let mTrack = i18n.gettext('Track')
@@ -148,12 +167,11 @@
         let Affichage = {
            // [mAisrpaces] : openaip_layer,  
             [mTrack] : tracksGroup,
-           // [mThermal] : thermalGroup,
-          //  [mTrans]: GlidesGroup,
+            [mThermal] : thermalGroup,
+            [mTrans]: GlidesGroup,
         }
 
         layerControl = new L.control.layers(baseMaps,Affichage).addTo(map)
-
 
         const StartIcon = new L.Icon({
             iconUrl: '/images/windsock22.png',
@@ -193,6 +211,49 @@
         map.fitBounds(geojsonLayer.getBounds())
     }
 
+    function createPopThermal(feature, layer) {
+        let htmlTable = '<table><caption>'+feature.properties.alt_gain+'m - '+feature.properties.avg_climb+'m/s</caption>'                
+        htmlTable +='<tr><td>'+i18n.gettext('Altitude gain')+'</td><td>'+feature.properties.alt_gain+'m</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Average climb')+'</td><td>'+feature.properties.avg_climb+'m/s</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Maximum climb')+'</td><td>'+feature.properties.max_climb+'m/s</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Peak climb')+'</td><td>'+feature.properties.peak_climb+'m/s</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Efficiency')+'</td><td>'+feature.properties.efficiency+'%</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Start altitude')+'</td><td>'+feature.properties.start_alt+'m</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Finish altitude')+'</td><td>'+feature.properties.finish_alt+'m</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Start time')+'</td><td>'+feature.properties.start_time+'</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Finish time')+'</td><td>'+feature.properties.finish_time+'</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Duration')+'</td><td>'+feature.properties.duration+'</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Accumulated altitude gain')+'</td><td>'+feature.properties.acc_gain+'m</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Accumulated altitude loss')+'</td><td>'+feature.properties.acc_loss+'m</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Drift')+'</td><td>'+feature.properties.drift+'</td></tr>'
+        htmlTable += '</table>'
+        // htmlTable = '<table><caption>1028m - 1,3 m/s</caption><tr><td>Altitude gain</td><td>1028m</td></tr><tr><td>Average climb</td><td>1,3m/s</td></tr><tr><td>Maximum climb</td><td>2,7m/s</td></tr><tr><td>Peak climb</td><td>5,0m/s</td></tr><tr><td>Efficiency</td><td>50%</td></tr><tr><td>Start altitude</td><td>1845m</td></tr><tr><td>Finish altitude</td><td>2873m</td></tr><tr><td>Start time</td><td>13:00:17</td></tr><tr><td>Finish time</td><td>13:13:04</td></tr><tr><td>Duration</td><td>12mn47s</td></tr><tr><td>Accumulated altitude gain</td><td>1081m</td></tr><tr><td>Accumulated altitude loss</td><td>-53m</td></tr><tr><td>Drift</td><td>7,5km/h SW</td></tr></table>'
+        layer.bindPopup(htmlTable)
+        //layer.bindPopup('<h1>'+feature.properties.alt_gain+'</h1><p>name: '+feature.properties.avg_climb+'</p>')
+    }
+
+    function createPopGlide(feature, layer) {
+        let htmlTable = '<table><caption>'+feature.properties.distance+'km - ['+feature.properties.avg_glide+'] '+feature.properties.avg_speed+'km/h</caption>'                
+        htmlTable +='<tr><td>'+i18n.gettext('Altitude change')+'</td><td>'+feature.properties.alt_change+'m</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Average descent')+'</td><td>'+feature.properties.avg_descent+'m/s</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Distance')+'</td><td>'+feature.properties.distance+'km</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Average glide ratio')+'</td><td>'+feature.properties.avg_glide+':1</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Average speed')+'</td><td>'+feature.properties.avg_speed+'km/h</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Start altitude')+'</td><td>'+feature.properties.start_alt+'m</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Finish altitude')+'</td><td>'+feature.properties.finish_alt+'m</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Start time')+'</td><td>'+feature.properties.start_time+'</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Finish time')+'</td><td>'+feature.properties.finish_time+'</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Duration')+'</td><td>'+feature.properties.duration+'</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Accumulated altitude gain')+'</td><td>'+feature.properties.acc_gain+'m</td></tr>'
+        htmlTable += '<tr><td>'+i18n.gettext('Accumulated altitude loss')+'</td><td>'+feature.properties.acc_loss+'m</td></tr>'
+        htmlTable += '</table>'
+        // htmlTable = '<table><caption>1028m - 1,3 m/s</caption><tr><td>Altitude gain</td><td>1028m</td></tr><tr><td>Average climb</td><td>1,3m/s</td></tr><tr><td>Maximum climb</td><td>2,7m/s</td></tr><tr><td>Peak climb</td><td>5,0m/s</td></tr><tr><td>Efficiency</td><td>50%</td></tr><tr><td>Start altitude</td><td>1845m</td></tr><tr><td>Finish altitude</td><td>2873m</td></tr><tr><td>Start time</td><td>13:00:17</td></tr><tr><td>Finish time</td><td>13:13:04</td></tr><tr><td>Duration</td><td>12mn47s</td></tr><tr><td>Accumulated altitude gain</td><td>1081m</td></tr><tr><td>Accumulated altitude loss</td><td>-53m</td></tr><tr><td>Drift</td><td>7,5km/h SW</td></tr></table>'
+        layer.bindPopup(htmlTable)
+        //layer.bindPopup('<h1>'+feature.properties.alt_gain+'</h1><p>name: '+feature.properties.avg_climb+'</p>')
+  
+    }
+    
+    
     function iniForm() {
         document.getElementById('bt-mes').addEventListener('click',(event) => {
         locMeasure._toggleMeasure()
@@ -209,20 +270,42 @@
         })  
     }
 
+    // from https://gist.github.com/geog4046instructor/80ee78db60862ede74eacba220809b64
+    function thermalIcon (feature, latlng) {
+        let myIcon
+        if (feature.properties.best_thermal) {
+            myIcon = L.AwesomeMarkers.icon({icon: 'fa-thumbs-up', markerColor: 'darkblue', prefix: 'fa', iconColor: 'white'})
+        } else {
+            myIcon = L.AwesomeMarkers.icon({icon: 'fa-cloud-upload', markerColor: 'blue', prefix: 'fa', iconColor: 'white'}) 
+        }
+        return L.marker(latlng, { icon: myIcon })
+    }
+
+    // from https://gist.github.com/geog4046instructor/80ee78db60862ede74eacba220809b64
+    function glideIcon (feature, latlng) {
+        let myIcon
+        if (feature.properties.glideToRight) {
+            myIcon = L.AwesomeMarkers.icon({icon: 'fa-angle-right', markerColor: 'red', prefix: 'fa', iconColor: 'white'})
+        } else {
+            myIcon = L.AwesomeMarkers.icon({icon: 'fa-angle-left', markerColor: 'red', prefix: 'fa', iconColor: 'white'}) 
+        }
+        return L.marker(latlng, { icon: myIcon })
+    }    
+
     function buildSidePanels()
     {
         sidebar.addPanel({
             id:   'summary',
             tab:  '<i class="fa fa-gear"></i>',
             title: i18n.gettext('Summary'),
-            pane: fillSidebarInfo()  // fillSidebarSummary()
+            pane: fillSidebarSummary()
         })
         
         sidebar.addPanel({
             id:   'pathway',
             tab:  '<i class="fa fa-gear"></i>',
             title: i18n.gettext('Pathway'),
-            pane: fillSidebarInfo() //fillSidebarPathway()
+            pane: fillSidebarPathway()
         }) 
 
         sidebar.addPanel({
@@ -236,7 +319,7 @@
             id:   'score',
             tab:  '<i class="fa fa-gear"></i>',
             title: i18n.gettext('Score'),
-            pane: fillSidebarInfo() // fillSidebarScoring()
+            pane: fillSidebarScoring()
         })     
 
         sidebar.addPanel({
@@ -311,6 +394,106 @@
         return htmlText
     } 
 
+    function fillSidebarScoring() {
+        let htmlText = fillSidebarButtons()
+        htmlText += '<br><br>'
+        htmlText += '<div style="margin-top: 20px;">'
+
+        htmlText += '<div class="d-flex align-items-center">'
+        htmlText += '     <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-toggle="dropdown" id="dd-scoring">score</button>'                      
+        htmlText += '     <div class="dropdown-menu" id="mnu-scoring">'
+        htmlText += '         <a class="dropdown-item" href="#">FFVL</a>'
+        htmlText += '         <a class="dropdown-item" href="#">XContest</a>'
+        htmlText += '         <a class="dropdown-item" href="#">FAI</a>'
+        htmlText += '         <a class="dropdown-item" href="#">FAI-Cylinders</a>'
+        htmlText += '         <a class="dropdown-item" href="#">FAI-OAR</a>'
+        htmlText += '         <a class="dropdown-item" href="#">FAI-OAR2</a>'
+        htmlText += '         <a class="dropdown-item" href="#">XCLeague</a>'
+        htmlText += '     </div>'
+        //htmlText += '     <button type="button" class="btn-danger btn-sm mr-3" onclick="displayScoring()">'+i18n.gettext('Scoring')+'</button>'
+        htmlText += '     <div class="spinner-border text-danger ml-auto d-none" role="status" id="waiting-spin">'
+        htmlText += '        <span class="sr-only">Loading...</span>'
+        htmlText += '     </div>'
+        //htmlText += '     </div>'
+        htmlText += '</div>'
+        htmlText += '<br><br>'
+        htmlText += '<div id="score_table" class="d-none"><table>'
+        htmlText += '    <tbody>'
+        htmlText += '      <tr><td>'+i18n.gettext('League')+'</td><td id="sc-league"></td></tr>'     
+        htmlText += '      <tr><td>'+i18n.gettext('Best possible')+'</td><td id="sc-best"></td></tr>'      
+        htmlText += '      <tr><td id="sc-course"></td><td id="sc-distance"></td></tr>'  
+        htmlText += '      <tr><td>'+i18n.gettext('Multiplier')+'</td><td id="sc-multi"></td></tr>' 
+        htmlText += '      <tr><td id ="sc-leg1"></td><td id="sc-legd1"></td></tr>' 
+        htmlText += '      <tr><td id ="sc-leg2"></td><td id="sc-legd2"></td></tr>' 
+        htmlText += '      <tr><td id ="sc-leg3"></td><td id="sc-legd3"></td></tr>' 
+        htmlText += '      <tr><td id ="sc-leg4"></td><td id="sc-legd4"></td></tr>' 
+        htmlText += '      <tr><td id ="sc-leg5"></td><td id="sc-legd5"></td></tr>' 
+        htmlText += '    </tbody>'
+        htmlText += '  </table></div>'
+
+        return htmlText  
+    }    
+
+    function displayScoring(geoJsonXc) {
+
+        const result = JSON.parse(JSON.stringify(geoJsonXc))
+
+        if (typeof scoreGroup !== "undefined") {
+            map.removeLayer(scoreGroup)
+        }
+        
+        currLeague = result.league
+        document.getElementById("sc-league").innerHTML = result.league
+        document.getElementById("sc-best").innerHTML = result.score+' pts'
+        document.getElementById("sc-course").innerHTML = result.course
+        document.getElementById("sc-distance").innerHTML = result.distance+' km'
+        document.getElementById("sc-multi").innerHTML = result.multiplier
+
+        const scoreLegs = result.legs
+        for (let i = 0; i < scoreLegs.length; i++) {
+        const leg = scoreLegs[i]
+        switch (i) {
+            case 0:
+            document.getElementById("sc-leg1").innerHTML = leg.name
+            document.getElementById("sc-legd1").innerHTML = leg.d+' km'
+            break
+            case 1:
+            document.getElementById("sc-leg2").innerHTML = leg.name
+            document.getElementById("sc-legd2").innerHTML = leg.d+' km'
+            break
+            case 2:
+            document.getElementById("sc-leg3").innerHTML = leg.name
+            document.getElementById("sc-legd3").innerHTML = leg.d+' km'
+            break
+            case 3:
+            document.getElementById("sc-leg4").innerHTML = leg.name
+            document.getElementById("sc-legd4").innerHTML = leg.d+' km'
+            break
+            case 4:
+            document.getElementById("sc-leg5").innerHTML = leg.name
+            document.getElementById("sc-legd5").innerHTML = leg.d+' km'
+            break
+        }
+        }
+        $('#score_table').removeClass('d-none')
+        const currColor = getColor()
+        geoScore =  L.geoJson(geoJsonXc,{ 
+            style: function(feature) {
+            return {
+                stroke: true,
+                color: currColor,
+                weight: 4
+            }
+            },
+           onEachFeature: onEachFeature
+        })
+        scoreGroup = new L.LayerGroup()
+        scoreGroup.addTo(map)
+        scoreGroup.addLayer(geoScore)
+        layerControl.addOverlay(scoreGroup, i18n.gettext('Score'))
+        sidebar.open('score')
+    }
+
     function fillSidebarButtons() {
         
         let htmlText = '<br>'
@@ -322,6 +505,299 @@
         htmlText += ' <button type="button" class="btn-info btn-sm" onclick="sidebar.open(\'check\')"><i class="fa fa-plane"></i>&nbsp;'+i18n.gettext('Check')+'</button>'
         htmlText += '</div>'
         return htmlText
+    }
+
+    function fillSidebarSummary() {
+  
+        let percThermals = Math.round(anaTrack.percThermals*100)
+        let percGlides = Math.round(anaTrack.percGlides*100)
+        let percDives = Math.round(anaTrack.percDives*100)
+        let percVarious = Math.round(100-(percThermals+percGlides+percDives))
+
+        let data  = []
+        let color = []
+        data.push({ value: percThermals })
+        color.push('#F6BB42')
+        data.push({ value: percGlides })
+        color.push('#8CC152')
+        data.push({ value: percVarious })
+        color.push('#DA4453')
+        if (percDives > 0) {
+            data.push({ value: percDives })
+            color.push('#967ADC')
+        }
+        const centerX = 125
+        const centerY = 125
+        const radius = 105
+        let mysvg = ''
+        let arr = pie(centerX, centerY, radius, data)   // pieGnerator.pie(centerX, centerY, radius, data)
+        for (let i = 0; i < arr.length; i++) {
+            let item = arr[i]  
+            mysvg +=`<g transform="${item.transform}"><path d="${item.d}" fill="${color[i]}" /><text fill="white" font-size="14" ${item.text}">${item.value}%</text></g>`
+        }
+
+        let htmlText = fillSidebarButtons()
+        htmlText +='<br>'
+        htmlText += '<div style="text-align: center"><svg id="onePieDiv" width="250" height="250">'
+        htmlText += mysvg
+        htmlText += '</svg></div>'
+        htmlText +='<p align="center"><span style="margin-left:10px;font-size:16px;background-color:  #F6BB42; color: white;">&nbsp;&nbsp;&nbsp;'+i18n.gettext('Thermal')+'&nbsp;&nbsp;'+percThermals+'&nbsp;%&nbsp;&nbsp;&nbsp;</span>'
+        htmlText +='<span style="margin-left:10px;font-size:16px;background-color:  #8CC152; color: white;">&nbsp;&nbsp;&nbsp;'+i18n.gettext('Glide')+'&nbsp;&nbsp;'+percGlides+'&nbsp;%&nbsp;&nbsp;&nbsp;</span>'
+        htmlText +='</p>'
+        htmlText +='<p align="center"><span style="font-size:16px;background-color: #DA4453; color: white;">&nbsp;&nbsp;&nbsp;'+i18n.gettext('Various')+'&nbsp;&nbsp;'+percVarious+'&nbsp;%&nbsp;&nbsp;&nbsp;</span>'
+        htmlText +='<span style="margin-left:10px;font-size:16px;background-color:  #967ADC; color: white;">&nbsp;&nbsp;&nbsp;'+i18n.gettext('Dive')+'&nbsp;&nbsp;'+percDives+'&nbsp;%&nbsp;&nbsp;&nbsp;</span>'
+        htmlText +='</p>'
+
+        let efficiencyColor = '000000'
+        let htmlIcon = ''
+        if (anaTrack.avgThermalEffi > 69) {
+            efficiencyColor = '66FF66'
+            htmlIcon = '<i class="fa fa-thumbs-up" aria-hidden="true"></i>'
+        } else if (anaTrack.avgThermalEffi > 49) {
+            efficiencyColor = '00C0F4'   
+            htmlIcon = '<i class="fa fa-hand-peace-o" aria-hidden="true"></i>' 
+        } else {
+            efficiencyColor = 'FF6600'
+            htmlIcon = '<i class="fa fa-thumbs-o-down" aria-hidden="true"></i>'
+        }
+        const avgThermalClimb = (Math.round(anaTrack.avgThermalClimb * 100) / 100).toFixed(2)
+        let avgTransSpeed =  (Math.round(anaTrack.avgTransSpeed * 100) / 100).toFixed(0)
+        const  h = Math.floor(anaTrack.extractTime / 3600)
+        const m = Math.floor(anaTrack.extractTime % 3600 / 60)
+        const s = Math.floor(anaTrack.extractTime % 3600 % 60)
+        const hDisplay = h > 0 ? h + (h == 1 ? "h" : "h") : ""
+        const mDisplay = m > 0 ? m + (m == 1 ? "mn" : "mn") : ""
+        const sDisplay = s > 0 ? s + (s == 1 ? "s" : "s") : ""
+        let hExtractTime = hDisplay + mDisplay + sDisplay    
+        htmlText +='<p style="font-size:16px;">'+i18n.gettext('Avg th efficiency')+'&nbsp;&nbsp;<span style="margin-right:10px; font-size:14px;background-color: #'+efficiencyColor+'; color: white;">&nbsp;&nbsp;'+Math.ceil(anaTrack.avgThermalEffi)+'%</span>'+htmlIcon+'<br>'
+        htmlText += i18n.gettext('Avg thermal climb')+'&nbsp;&nbsp;'+avgThermalClimb+'&nbsp;m/s<br>'
+        htmlText += i18n.gettext('Max gain')+'&nbsp;&nbsp;'+anaTrack.bestGain+' m<br>'
+        htmlText += i18n.gettext('Extraction time')+'&nbsp;&nbsp;'+hExtractTime+'<br>'
+        htmlText += i18n.gettext('Avg transition speed')+'&nbsp;&nbsp;'+avgTransSpeed+'&nbsp;km/h<br>'
+        htmlText += i18n.gettext('Max speed')+'&nbsp;&nbsp;'+trackStat.maxspeed+' km/h<br>' 
+        htmlText += i18n.gettext('Max GPS alt')+'&nbsp;&nbsp;'+trackStat.maxalt.gps+'m&nbsp;&nbsp;&nbsp;'
+        htmlText += '<span style="margin-left:10px">'+i18n.gettext('Min GPS Alt')+'&nbsp;&nbsp;'+trackStat.minialt.gps+'m&nbsp;&nbsp;&nbsp</span><br>'  
+        htmlText += i18n.gettext('Max climb')+'&nbsp;&nbsp;'+trackStat.maxclimb+' m/s&nbsp;&nbsp;&nbsp;' 
+        htmlText += '<span style="margin-left:10px">'+i18n.gettext('Max sink')+'&nbsp;&nbsp;'+trackStat.maxsink+' m/s&nbsp;&nbsp;&nbsp;<br>' 
+        htmlText +='</p>'
+
+        return htmlText
+    }    
+
+    function fillSidebarPathway() {
+        let lineCatIcon 
+        let lineTime
+        let lineElapsed
+        let lineAlt
+        let lineInfo
+        let climb2dec
+        let htmlText = fillSidebarButtons()
+        htmlText += '<div><table style="width: 100%;margin-top: 100px;">'
+        htmlText += '    <tbody>'
+        // header
+        htmlText += '      <tr><td>'+i18n.gettext('Time')+'</td><td>'+i18n.gettext('Elapsed')+'</td><td>'+i18n.gettext('Alt')+'</td><td><td></tr>'
+        lineInfo = '<td></td>'
+        for (let cr of anaTrack.course) {
+            switch (cr.category) {
+            case 'K':
+                // Take Off
+                //lineCatIcon = '<td><i class="fa fa-paper-plane fa-2x"></i></td>' 
+            // lineCatIcon = '<td><i class="fa fa-paper-plane"></i></td>' 
+                lineCatIcon = '<td><a href="javascript:void(0)" onclick="displayTakeOff()"><i class="fa fa-paper-plane"></i> '+i18n.gettext('Take off')+'</a></td>'
+                lineTime = '<td>'+cr.time+'</td>'
+                lineElapsed = '<td>00:00</td>'
+                lineAlt = '<td>'+cr.alt+'</td>'
+            //  lineInfo = '<td>'+i18n.gettext('Take off')+'</td>'
+                lineInfo = '<td></td>'
+                break
+            case 'T':
+                // Thermal
+                //lineCatIcon = '<td><i class="fa fa-cloud-upload fa-2x"></i></td>' 
+                // lineCatIcon = '<td><i class="fa fa-cloud-upload"></i></td>' 
+                lineCatIcon = '<td><a href="javascript:void(0)" onclick="displaySegment('+cr.coords+')"><i class="fa fa-cloud-upload"></i> '+i18n.gettext('Thermal')+'</a></td>'
+                lineTime = '<td>'+cr.time+'</td>'
+                lineElapsed = '<td>'+cr.elapsed+'</td>'
+                lineAlt = '<td>'+cr.alt+'</td>'
+                climb2dec = (Math.round(cr.data2 * 100) / 100).toFixed(2)
+                lineInfo = '<td>[+'+cr.data1+'m '+climb2dec+'m/s]</td>'    
+                break    
+            case 'G':
+                // Glide
+                //lineCatIcon = '<td><i class="fa fa-arrow-right fa-2x"></i></td>' 
+            // lineCatIcon = '<td><i class="fa fa-arrow-right"></i></td>' 
+                lineCatIcon = '<td><a href="javascript:void(0)" onclick="displaySegment('+cr.coords+')"><i class="fa fa-arrow-right"></i> '+i18n.gettext('Glide')+'</td>'
+                lineTime = '<td>'+cr.time+'</td>'
+                lineElapsed = '<td>'+cr.elapsed+'</td>'
+                lineAlt = '<td>'+cr.alt+'</td>'
+                lineInfo = '<td>[+'+cr.data1+'km '+cr.data2+'km/h]</td>'     
+                break            
+            case 'L':
+                // Landing
+            // lineCatIcon = '<td><i class="fa fa-flag fa-2x"></i></td>' 
+            //  lineCatIcon = '<td><i class="fa fa-flag"></i></td>' 
+            // lineCatIcon = '<td><i class="fa fa-flag"></i> '+i18n.gettext('Landing')+'</td>'
+                lineCatIcon = '<td><a href="javascript:void(0)" onclick="displayLanding()"><i class="fa fa-flag"></i> '+i18n.gettext('Landing')+'</a></td>'
+
+                lineTime = '<td>'+cr.time+'</td>'
+                lineElapsed = '<td>'+cr.elapsed+'</td>'
+                lineAlt = '<td>'+cr.alt+'</td>'
+                //lineInfo = '<td>'+i18n.gettext('Landing')+'</td>'
+                lineInfo = '<td></td>'
+                break
+                }
+            //htmlText += '      <tr>'+lineCatIcon+lineTime+lineElapsed+lineAlt+lineInfo+'</tr>'     
+            htmlText += '      <tr>'+lineTime+lineElapsed+lineAlt+lineCatIcon+lineInfo+'</tr>'     
+        }
+        htmlText += '    </tbody>'
+        htmlText += '  </table></div>'
+
+        return htmlText
+    }    
+
+    function onEachFeature(feature, layer) {
+        // does this feature have a property named popupContent?
+        if (feature.properties && feature.properties.popupContent) {
+            layer.bindPopup(feature.properties.popupContent)
+        }
+    }
+
+    function getColor() {
+        let selColor
+        switch (currLeague) {
+            case 'FFVL':
+            selColor = 'yellow'
+            break
+            case 'XContest':
+            selColor = 'fuchsia'
+            break
+            case 'FAI':
+            selColor = 'darkorange'
+            break
+            case 'FAI-Cylinders':
+            selColor = 'skyblue'
+            break
+            case 'FAI-OAR':
+            selColor = 'yellowgreen'
+            break
+            case 'FAI-OAR2':
+            selColor = 'sienna'
+            break
+            case 'XCLeague' :
+            selColor = 'lawngreen'
+            break 
+            default:
+            selColor = 'yellow'
+            break
+        }
+        return selColor
+    }
+
+
+    // Display Thermals
+    function openPathway() {
+        $('.leaflet-control-layers-selector')[8].click()
+        $('.leaflet-control-layers-selector')[9].click()
+        sidebar.open('pathway')
+    }
+
+
+    // Centering on takeoff
+    function displayTakeOff() {
+        map.fitBounds([startLatlng])      
+    } 
+
+    // Centering on landing
+    function displayLanding() {
+        map.fitBounds([endLatlng])      
+    }    
+
+    // Display a segment of the track
+    function displaySegment(lat1,long1,lat2,long2) {
+        map.fitBounds([[lat1, long1],[lat2, long2]])      
+    }   
+
+    function runXcScore(selLeague) {
+        // waiting icon
+        $('#waiting-spin').removeClass('d-none')
+        let newGeoJSON = {}
+        const league = selLeague
+        try {
+            let infoMsg = msg+'Scoring start...+<br> -'+igcText[0]+'-'+igcText[igcText.length-1]+'-'
+            document.getElementById('graphe').innerHTML = infoMsg
+            IGCScore.score(igcText, (score) => {
+              if (score && typeof score.value == 'object') {
+                score = score.value;
+              }
+            const geojson = score.geojson()
+            const data = JSON.parse(JSON.stringify(geojson))
+            const arrData   = Object.values(data)
+            if (arrData.length == 3) {        
+                newGeoJSON.type = "FeatureCollection"
+                newGeoJSON.name = "EPSG:3857"
+                newGeoJSON.league = league
+                newGeoJSON.score = arrData[1].score
+                newGeoJSON.bound = arrData[1].bound
+                newGeoJSON.course = score.opt.scoring.name   // Triangle FAI ou Distance libre etc...
+                newGeoJSON.code = arrData[1].code
+                newGeoJSON.distance = score.scoreInfo.distance
+                newGeoJSON.multiplier = score.opt.scoring.multiplier
+                newGeoJSON.legs = score.scoreInfo.legs
+                // restee à faire le parocurs des branches
+                
+                newGeoJSON.features = []
+                for (let i = 0; i < arrData[2].length; i++) {
+                    const element = arrData[2][i]
+                    const elemType = element.geometry.type
+                    const elemId = element.properties.id
+                    let elemSelected = true
+                    if (elemId.includes('launch')) elemSelected = false
+                    if (elemId.includes('land')) elemSelected = false
+                    let feature = {}
+                    let properties = {}
+                    let geometry = {}
+                    let coord = []
+                    switch (elemType) {
+                        case "Point":
+                            if (elemSelected) {
+                                properties.id = element.properties.id 
+                                properties.r = element.properties.r
+                                properties.timestamp = element.properties.timestamp
+                               // const hElement = moment(element.properties.timestamp).format("HH:mm:ss")
+                                const hElement = Highcharts.dateFormat('%H:%M:%S',element.properties.timestamp)
+                                properties.popupContent = String(element.properties.id).toUpperCase()+'</br>'+hElement
+                                geometry.type = element.geometry.type
+                                geometry.coordinates = [element.geometry.coordinates[0],element.geometry.coordinates[1]]
+                                feature.type = "Feature"
+                                feature.id = element.id
+                                feature.properties = properties
+                                feature.geometry = geometry
+                                newGeoJSON.features.push(feature)
+                            }
+                            break;
+                        case "LineString":
+                            properties.id = element.properties.id 
+                            properties.d = element.properties.d
+                            const dist =  (Math.round(element.properties.d * 100) / 100).toFixed(2);
+                            properties.popupContent = dist+' km'
+                            geometry.type = element.geometry.type
+                            coord.push(element.geometry.coordinates[0])
+                            coord.push(element.geometry.coordinates[1])
+                            geometry.coordinates = coord                 
+                            feature.type = "Feature"
+                            feature.id = element.id
+                            feature.properties = properties
+                            feature.geometry = geometry
+                            newGeoJSON.features.push(feature)                
+                        break;
+                    }
+                }
+                $('#waiting-spin').addClass('d-none')
+                displayScoring(newGeoJSON)
+            } 
+            }, null, 60);
+          } catch(e) {
+                document.getElementById('graphe').innerHTML = msg+e;
+          }     
     }
 
 </script>
