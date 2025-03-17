@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const igcRead = require('../utils/igc/igc-read.js')
 const IGCAnalyzer = require('../utils/igc/igc-analyzer.js')
+require('dotenv').config()
 
 // https://medium.com/@julien.maffar/impl%C3%A9mentation-de-multer-dans-une-api-node-js-e358dd513e64
 // Configure multer for file uploads
@@ -45,6 +46,8 @@ router.post('/upload', upload.single('textFile'), (req, res) => {
   });
 
 function renderTrack(filePath,res, page) {
+  const aipKey = process.env.OPENAIP
+
   fs.readFile(filePath, 'utf8', (err, data) => {
     if (err) {
       const msg = 'Error reading the file : '+filePath
@@ -59,7 +62,7 @@ function renderTrack(filePath,res, page) {
     const anaTrack = new IGCAnalyzer()
     anaTrack.compute(track.fixes)
     //The final step is to download the ground heights
-    res.render(page,{ mainTrack : track, anaTrack : anaTrack });
+    res.render(page,{ mainTrack : track, anaTrack : anaTrack, openAipKey : aipKey});
   });
 }
 
